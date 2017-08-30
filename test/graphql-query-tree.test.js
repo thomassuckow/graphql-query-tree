@@ -164,4 +164,66 @@ describe('GraphqlQueryTree', function () {
 
   });
 
+  describe('aliases', function () {
+
+    it('should work with aliases', async function () {
+      const self = this;
+      addResolveFunctionsToSchema(this.schema, {
+        Query: {
+          posts (root, args, context, info) {
+            self.info = info;
+            return [{ tags: [{ id: 1 }] }];
+          },
+        },
+        Post: {
+          tags (root, args, context, info) {
+            self.nestedInfo = info;
+            return [{ id: 2 }];
+          },
+        },
+      });
+      const result = await this.runQuery(`
+        query {
+          postsAlias: posts {
+            tagsAlias: tags { id }
+          }
+        }
+      `);
+      const tree = new GraphqlQueryTree(this.info);
+      const nestedTree = new GraphqlQueryTree(this.nestedInfo);
+
+      expect(tree.getParentField()).to.equal('posts');
+      expect(nestedTree.getParentField()).to.equal('tags');
+    });
+
+    it('should work with aliases', async function () {
+      const self = this;
+      const parentFields = [];
+      addResolveFunctionsToSchema(this.schema, {
+        Query: {
+          posts (root, args, context, info) {
+            const tree = new GraphqlQueryTree(info);
+            parentFields.push(tree.getParentField());
+            return [{ tags: [{ id: 1 }] }];
+          },
+        },
+      });
+      const result = await this.runQuery(`
+        query {
+          postsAlias1: posts {
+            tagsAlias: tags { id }
+          }
+          postsAlias2: posts {
+            tagsAlias: tags { id }
+          }
+          posts {
+            tagsAlias: tags { id }
+          }
+        }
+      `);
+      expect(parentFields).to.eql(['posts', 'posts', 'posts']);
+    });
+
+  });
+
 });
